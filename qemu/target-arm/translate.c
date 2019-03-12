@@ -151,7 +151,12 @@ static void store_reg(DisasContext *s, int reg, TCGv_i32 var)
 {
     TCGContext *tcg_ctx = s->uc->tcg_ctx;
     if (reg == 15) {
-        tcg_gen_andi_i32(tcg_ctx, var, var, ~1);
+        /* In Thumb mode, we must ignore bit 0.
+        * In ARM mode, for ARMv4 and ARMv5, it is UNPREDICTABLE if bits [1:0]
+        * are not 0b00, but for ARMv6 and above, we must ignore bits [1:0].
+        * We choose to ignore [1:0] in ARM mode for all architecture versions.
+        */
+        tcg_gen_andi_i32(tcg_ctx, var, var, s->thumb ? ~1 : ~3);
         s->is_jmp = DISAS_JUMP;
     }
     tcg_gen_mov_i32(tcg_ctx, tcg_ctx->cpu_R[reg], var);
@@ -9234,6 +9239,39 @@ static int disas_thumb2_insn(CPUARMState *env, DisasContext *s, uint16_t insn_hw
     int conds;
     int logic_cc;
 
+    /*
+    * ARMv6-M supports a limited subset of Thumb2 instructions.
+    * Other Thumb1 architectures allow only 32-bit
+    * combined BL/BLX prefix and suffix.
+    */
+    if (arm_dc_feature(s, ARM_FEATURE_M) &&
+        !arm_dc_feature(s, ARM_FEATURE_V7)) {
+      int i;
+      bool found = false;
+      static const uint32_t armv6m_insn[] = {0xf3808000 /* msr */,
+                                             0xf3b08040 /* dsb */,
+                                             0xf3b08050 /* dmb */,
+                                             0xf3b08060 /* isb */,
+                                             0xf3e08000 /* mrs */,
+                                             0xf000d000 /* bl */};
+      static const uint32_t armv6m_mask[] = {0xffe0d000,
+                                             0xfff0d0f0,
+                                             0xfff0d0f0,
+                                             0xfff0d0f0,
+                                             0xffe0d000,
+                                             0xf800d000};
+
+      for (i = 0; i < ARRAY_SIZE(armv6m_insn); i++) {
+        if ((insn & armv6m_mask[i]) == armv6m_insn[i]) {
+          found = true;
+          break;
+        }
+      }
+      if (!found) {
+        goto illegal_op;
+      }
+    }
+
     if (!(arm_dc_feature(s, ARM_FEATURE_THUMB2)
           || arm_dc_feature(s, ARM_FEATURE_M))) {
         /* Thumb-1 cores may need to treat bl and blx as a pair of
@@ -9999,6 +10037,10 @@ static int disas_thumb2_insn(CPUARMState *env, DisasContext *s, uint16_t insn_hw
                         }
                         break;
                     case 3: /* Special control operations.  */
+                        if (!arm_dc_feature(s, ARM_FEATURE_V7) &&
+                            !arm_dc_feature(s, ARM_FEATURE_M)) {
+                          goto illegal_op;
+                        }
                         ARCH(7);
                         op = (insn >> 4) & 0xf;
                         switch (op) {

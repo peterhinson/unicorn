@@ -362,9 +362,13 @@ static int arm_cpu_realizefn(struct uc_struct *uc, DeviceState *dev, Error **err
     if (arm_feature(env, ARM_FEATURE_V5)) {
         set_feature(env, ARM_FEATURE_V4T);
     }
+    /* Review: https://github.com/qemu/qemu/commit/7e0cf8b47f0e67cebbc3dfa73f304e56ad1a090f */
+    /*
     if (arm_feature(env, ARM_FEATURE_M)) {
         set_feature(env, ARM_FEATURE_THUMB_DIV);
     }
+    
+    */
     if (arm_feature(env, ARM_FEATURE_ARM_DIV)) {
         set_feature(env, ARM_FEATURE_THUMB_DIV);
     }
@@ -611,6 +615,15 @@ static void arm11mpcore_initfn(struct uc_struct *uc, Object *obj, void *opaque)
     cpu->id_isar3 = 0x01102131;
     cpu->id_isar4 = 0x141;
     cpu->reset_auxcr = 1;
+}
+
+static void cortex_m0_initfn(struct uc_struct *uc, Object *obj, void *opaque)
+{
+    ARMCPU *cpu = ARM_CPU(uc, obj);
+    set_feature(&cpu->env, ARM_FEATURE_V6);
+    set_feature(&cpu->env, ARM_FEATURE_M);
+
+    cpu->midr = 0x410cc200;
 }
 
 static void cortex_m3_initfn(struct uc_struct *uc, Object *obj, void *opaque)
@@ -1015,6 +1028,7 @@ static const ARMCPUInfo arm_cpus[] = {
     { "arm1136",     arm1136_initfn },
     { "arm1176",     arm1176_initfn },
     { "arm11mpcore", arm11mpcore_initfn },
+    { "cortex-m0",   cortex_m0_initfn, arm_v7m_class_init },
     { "cortex-m3",   cortex_m3_initfn, arm_v7m_class_init },
     { "cortex-a8",   cortex_a8_initfn },
     { "cortex-a9",   cortex_a9_initfn },

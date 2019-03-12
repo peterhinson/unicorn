@@ -16,11 +16,11 @@
 #include "hw/boards.h"
 #include "exec/address-spaces.h"
 
-
 static int tosa_init(struct uc_struct *uc, MachineState *machine)
 {
+    // TODO: fix these hardcoded values
     if (uc->mode & UC_MODE_MCLASS) {
-        uc->cpu = (CPUState *)cpu_arm_init(uc, "cortex-m3");
+        uc->cpu = (CPUState *)cpu_arm_init(uc, "cortex-m0");
     } else {
         uc->cpu = (CPUState *)cpu_arm_init(uc, "cortex-a15");
     }
